@@ -1,0 +1,9 @@
+# TP2 — 8INF852 — Métaheuristiques en optimisation — H2026
+# Python 3.11+
+
+numpy>=1.26
+matplotlib>=3.8
+pandas>=2.1
+nltk>=3.8
+requests>=2.31
+pyyaml>=6.0

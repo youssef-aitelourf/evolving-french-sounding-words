@@ -1,0 +1,103 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# config.yaml — Configuration du TP2 : évolution de mots pseudo-français
+# 8INF852 — Métaheuristiques en optimisation — H2026
+# ─────────────────────────────────────────────────────────────────────────────
+# Tous les paramètres sont modifiables ici sans toucher au code source.
+# ─────────────────────────────────────────────────────────────────────────────
+
+general:
+  verbosity: 1          # 0 = silencieux | 1 = résumé par run | 2 = détaillé par génération
+  output_dir: "results"
+
+  # Graines aléatoires (PCG64) — une par run Monte-Carlo
+  # Sauvegardées dans les DataFrames pour reproductibilité diagnostique
+  random_seeds:
+    - 42
+    - 123
+    - 456
+    - 789
+    - 1337
+    - 2024
+    - 271828
+    - 314159
+    - 11235
+    - 17711
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Problème
+# ─────────────────────────────────────────────────────────────────────────────
+problem:
+  min_length: 4           # longueur minimale des mots candidats
+  max_length: 16          # longueur maximale (limite mémoire)
+
+  # Pénalités (ajoutées à la perplexité — à minimiser)
+  dict_penalty: 50.0      # pénalité si le mot existe dans le dictionnaire
+  repeat_penalty: 200.0   # pénalité si > 3 caractères consécutifs identiques
+  invalid_char_penalty: 500.0   # pénalité par caractère hors alphabet autorisé
+  length_penalty: 1000.0  # pénalité si longueur hors [min_length, max_length]
+
+  n_jobs: 4               # parallélisme ThreadPoolExecutor (−1 = tous les cœurs)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Algorithme Génétique
+# ─────────────────────────────────────────────────────────────────────────────
+ga:
+  population_size: 200    # µ (taille de la population)
+  max_evals: 20000        # budget total d'appels à la fonction objective
+
+  # Élitisme
+  use_elitism: true       # activer/désactiver l'élitisme
+  n_elites: 5             # nombre d'individus élites conservés (non réévalués)
+
+  # Logique de l'étalon (champion)
+  use_etalon: true        # activer/désactiver la logique de l'étalon
+  etalon_prob: 0.30       # probabilité qu'un parent soit l'étalon lors du croisement
+
+  # Losers (individus faibles conservés pour la diversité)
+  use_losers: true        # activer/désactiver la conservation des losers
+  n_losers: 5             # nombre de losers conservés (non réévalués)
+
+  # Reseeds (réinitialisations d'individus)
+  use_reseeds: true       # activer/désactiver les reseeds
+  n_reseeds: 5            # nombre d'individus réinitialisés aléatoirement par génération
+
+  # Opérateurs génétiques
+  pm: 0.15                # probabilité de mutation par caractère (substitution)
+  pc: 0.80                # probabilité de croisement
+  crossover: "single_point"   # "single_point" ou "uniform"
+  tournament_k: 3         # taille du tournoi de sélection
+
+  # Note : n_enfants = population_size − n_elites − n_losers − n_reseeds = 185
+  # Évaluations par génération ≈ 185 + 5 = 190
+  # Générations approximatives = (20000 − 200) / 190 ≈ 104
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EDA — UMDA (Univariate Marginal Distribution Algorithm)
+# ─────────────────────────────────────────────────────────────────────────────
+eda:
+  population_size: 200    # taille de la population rééchantillonnée à chaque génération
+  max_evals: 20000        # budget total (même ordre que GA pour comparabilité)
+
+  selection_ratio: 0.50   # fraction des meilleurs utilisés pour estimer les distributions
+                          # ex. 0.50 = top 50% → n_selection = 100
+
+  smoothing: 0.01         # paramètre α du lissage de Laplace pour P(char|pos)
+  length_smoothing: 0.01  # paramètre α pour P(longueur)
+
+  n_elites: 1             # élitisme inter-générations : préserve le meilleur individu
+                          # (mémoire inter-générations, réduit la variance IQR)
+
+  # Note : évaluations par génération = population_size − n_elites = 199
+  # Générations approximatives = (20000 − 200) / 199 ≈ 99
+  # Budget vs GA : |190 − 199| / 199 = 4.5% < 10% ✓
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Protocole expérimental
+# ─────────────────────────────────────────────────────────────────────────────
+experiments:
+  n_runs: 10              # nombre d'exécutions Monte-Carlo indépendantes par configuration
+                          # (les seeds utilisées sont les n_runs premières de random_seeds)
