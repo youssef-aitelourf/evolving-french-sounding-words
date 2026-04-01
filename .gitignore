@@ -7,3 +7,6 @@ venv/
 .env
 *.egg-info/
 .DS_Store
+
+# Course report (not distributed with the public repo)
+rapport_TP2.docx

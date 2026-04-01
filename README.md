@@ -1,108 +1,83 @@
-# 8INF852 — TP2 — Évolution discrète : recombinaison vs modélisation probabiliste
-**Étudiant :** AITELOURF Youssef
-**Session :** Hiver 2026
+# Evolving French-sounding words
+
+**Genetic algorithms vs. estimation-of-distribution — without ever putting real French words in the output.**
+
+Two evolutionary approaches compete to invent strings that *feel* French (low perplexity under a character-level Markov model) while staying **out of the dictionary**. The code runs a full Monte Carlo study: crossover operators, an “étalon” (champion breeding) operator, deliberate retention of the **worst** individuals for diversity, and a head-to-head against **UMDA** (univariate marginal distribution algorithm).
+
+Write-up with figures and interpretation: **[What If an AI Invented French Words?](https://medium.com/@youssefaitelourf/what-if-an-ai-invented-french-words-51c37fb6e43c)** (Medium)
 
 ---
 
-## Description
+## What this repo contains
 
-Ce projet compare deux philosophies d'algorithmes évolutionnaires discrets pour
-faire évoluer des mots qui sonnent français sans être de vrais mots :
+| Piece | Role |
+|--------|------|
+| **Fitness** | Second-order Markov (trigram) model trained on [Lexique383](http://www.lexique.org/) (~125k lemmas). Perplexity + soft dictionary penalty + validity penalties. |
+| **GA** | Tournament selection, single-point or uniform crossover, mutation, elitism, optional étalon and “losers” pool. |
+| **UMDA** | Selects top fraction, fits per-position character marginals (+ length), samples new population. |
+| **Experiments** | Four studies: crossover type, étalon on/off, losers on/off, best GA vs UMDA — each **10 seeds**, PCG64, comparable evaluation budgets. |
+| **Outputs** | CSV histories, stats, convergence / boxplot / diversity plots under `results/`. |
 
-- **GA** (Algorithme Génétique) — recombinaison explicite avec crossover & mutation
-- **UMDA** (EDA) — modélisation probabiliste des distributions marginales par position
+### Headline results (see the article for full analysis)
 
-La « franciosité » est mesurée via un modèle Markovien d'ordre 2 entraîné sur
-Lexique383 (~150 000 mots français), et utilisé exclusivement comme boîte noire.
+- Keeping the **five worst** solutions each generation improved median fitness by **~8%** vs discarding them; diversity collapsed without them.
+- **GA** beat **UMDA** by a large margin on median and best fitness — the fitness is explicitly **Markovian** (dependencies between adjacent characters); UMDA’s independence assumption does not match that structure.
+- Single-point vs uniform crossover: **same** median best fitness in this setup; uniform crossover was slightly **more consistent** (lower IQR).
 
 ---
 
-## Installation
+## Quick start
 
 ```bash
 pip install -r requirements.txt
+python main.py
 ```
 
-Le dictionnaire et le modèle de langage sont téléchargés et mis en cache
-automatiquement au premier lancement.
+The lexicon and language model are built or loaded from `lexique/` on first run.
 
----
-
-## Utilisation
+### Useful CLI modes
 
 ```bash
-# Toutes les expériences (recommandé)
-python main.py
-
-# Mode démonstration (une exécution)
-python main.py --mode run_ga
-python main.py --mode run_eda
-
-# Expériences individuelles
-python main.py --mode exp_crossover    # i.  Comparaison des croisements
-python main.py --mode exp_etalon       # ii. Effet de l'étalon
-python main.py --mode exp_losers       # iii. Effet des losers
-python main.py --mode exp_ga_vs_eda    # iv. GA vs UMDA
-
-# Options
-python main.py --config config.yaml    # fichier de config (défaut)
-python main.py --verbosity 2           # mode très verbeux
-python main.py --output-dir mes_resultats/
-python main.py --force-rebuild         # reconstruire dict + modèle
+python main.py --mode run_ga          # single GA demo
+python main.py --mode run_eda         # single UMDA demo
+python main.py --mode exp_crossover   # crossover comparison
+python main.py --mode exp_etalon      # étalon on/off
+python main.py --mode exp_losers      # losers on/off
+python main.py --mode exp_ga_vs_eda   # GA vs UMDA
+python main.py --config config.yaml
+python main.py --output-dir my_results/
+python main.py --force-rebuild        # rebuild dict + Markov model
 ```
 
 ---
 
-## Structure du projet
+## Project layout
 
 ```
-├── problem.py      Dictionnaire, modèle Markovien, perplexité, fonction objectif
-├── algorithms.py   GA (GeneticAlgorithm) + EDA (UMDA)
-├── experiments.py  Protocole Monte-Carlo et 4 expériences du barème
-├── analysis.py     Statistiques descriptives et graphiques
-├── main.py         Point d'entrée CLI
-├── config.yaml     Tous les paramètres (modifiable sans toucher au code)
-├── requirements.txt
-└── lexique/        Cache auto-généré (dictionnaire + modèle)
+problem.py      Dictionary, Markov model, perplexity, objective
+algorithms.py   GeneticAlgorithm + UMDA
+experiments.py  Monte Carlo harness and the four experiments
+analysis.py     Summaries and plots
+main.py         CLI entry
+config.yaml     Hyperparameters (no code edits required)
+lexique/        Cached lexicon + model (auto-generated)
+results/        Run outputs (CSV, PNG, pickles)
 ```
 
 ---
 
-## Paramètres configurables (config.yaml)
+## Configuration
 
-| Section | Paramètre | Description |
-|---------|-----------|-------------|
-| `general` | `verbosity` | 0/1/2 |
-| `general` | `random_seeds` | Seeds PCG64 pour chaque run |
-| `problem` | `dict_penalty` | Pénalité mot existant |
-| `problem` | `repeat_penalty` | Pénalité répétitions > 3 |
-| `ga` | `use_elitism/etalon/losers/reseeds` | Toggles des mécanismes de diversité |
-| `ga` | `n_elites/losers/reseeds` | Taille de chaque mécanisme |
-| `ga` | `pm`, `pc` | Probabilités de mutation et croisement |
-| `ga` | `crossover` | `"single_point"` ou `"uniform"` |
-| `eda` | `selection_ratio` | Fraction de sélection (top-k%) |
-| `eda` | `smoothing` | Lissage de Laplace |
-| `experiments` | `n_runs` | Nombre de runs Monte-Carlo |
+All tunables live in `config.yaml` (verbosity, seeds, GA toggles, crossover type, EDA selection ratio, experiment repeat count, penalties, etc.).
 
 ---
 
-## Sorties
+## Reproducibility
 
-Les résultats sont générés dans `results/` :
+Experiments use fixed **PCG64** seeds from config; reported runs use **10 seeds** per configuration unless you change `experiments.n_runs`. Figures and tables in the Medium piece correspond to this pipeline.
 
-```
-results/
-├── exp_crossover/
-│   ├── exp_crossover.csv           Historique brut
-│   ├── exp_crossover.pkl           Pickle pandas
-│   ├── exp_crossover_convergence.png
-│   ├── exp_crossover_boxplot.png
-│   ├── exp_crossover_diversity.png
-│   ├── exp_crossover_stats.csv     Médiane, Q1, Q3, IQR, std
-│   └── annexe_mots_*.csv           Meilleurs mots générés
-├── exp_etalon/  ...
-├── exp_losers/  ...
-├── exp_ga_vs_eda/  ...
-└── annexe/
-    └── annexe_mots_*.csv           Top-500 mots par algorithme (annexe rapport)
-```
+---
+
+## License / attribution
+
+Lexique383 is an external lexical resource; cite Lexique.org if you reuse their data. This repository is the companion code for the Medium article above.
